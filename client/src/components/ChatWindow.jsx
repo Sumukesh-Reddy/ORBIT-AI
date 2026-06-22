@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react'
 import MessageBubble from './MessageBubble'
 import { motion } from 'framer-motion'
 
-export default function ChatWindow({ messages }) {
+export default function ChatWindow({ messages, documents = [] }) {
   const bottomRef = useRef(null)
 
   useEffect(() => {
@@ -18,7 +18,7 @@ export default function ChatWindow({ messages }) {
           transition={{ duration: 0.4 }}
         >
           {messages.map(msg => (
-            <MessageBubble key={msg.id} message={msg} />
+            <MessageBubble key={msg.id} message={msg} documents={documents} />
           ))}
           <div ref={bottomRef} />
         </motion.div>

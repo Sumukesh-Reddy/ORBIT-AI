@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion'
-import { CheckCircle, Quote, User, Orbit } from 'lucide-react'
+import { CheckCircle, Quote, User, Orbit, FileText } from 'lucide-react'
+
+import ReactMarkdown from 'react-markdown'
 
 function TypingIndicator() {
   return (
@@ -11,16 +13,59 @@ function TypingIndicator() {
   )
 }
 
-function SourceBadge({ source }) {
+function SourceBadge({ source, documents = [] }) {
+  const fileName = source.split(' · ')[0] || source;
+  const doc = documents.find(d => d.fileName === fileName || d.title === fileName);
+  const filePath = doc?.filePath;
+
+  const handleClick = () => {
+    if (filePath) {
+      window.open(filePath, '_blank');
+    }
+  };
+
   return (
-    <span className="inline-flex items-center gap-1.5 bg-blue-600/10 border border-blue-500/20 rounded-full px-2.5 py-1 text-xs text-blue-300 hover:bg-blue-600/20 transition-colors cursor-pointer">
+    <span
+      onClick={handleClick}
+      className={`inline-flex items-center gap-1.5 bg-blue-600/10 border border-blue-500/20 rounded-full px-2.5 py-1 text-xs text-blue-300 hover:bg-blue-600/20 transition-colors cursor-pointer ${
+        !filePath ? 'opacity-50 cursor-not-allowed' : ''
+      }`}
+      title={filePath ? 'Click to open document in new tab' : 'Document not found'}
+    >
       <Quote className="w-2.5 h-2.5" />
       {source}
     </span>
   )
 }
 
-export default function MessageBubble({ message }) {
+function AttachmentBadge({ attachment }) {
+  const ext = attachment.fileName.split('.').pop()?.toUpperCase()
+
+  const handleClick = () => {
+    if (attachment.filePath) {
+      window.open(attachment.filePath, '_blank');
+    }
+  };
+
+  return (
+    <div
+      onClick={handleClick}
+      className="inline-flex items-center gap-2 bg-white/6 hover:bg-white/12 border border-white/10 hover:border-white/20 rounded-xl px-3 py-2 cursor-pointer transition-all max-w-[240px] mt-1 group"
+      title="Click to view document in new tab"
+    >
+      <div className={`flex-shrink-0 ${
+        ext === 'PDF' ? 'text-red-400 group-hover:text-red-300' : ext === 'DOCX' ? 'text-blue-400 group-hover:text-blue-300' : 'text-white/50 group-hover:text-white'
+      }`}>
+        <FileText className="w-4 h-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-white/80 font-medium truncate group-hover:text-white leading-tight">{attachment.fileName}</p>
+      </div>
+    </div>
+  )
+}
+
+export default function MessageBubble({ message, documents = [] }) {
   const isUser = message.role === 'user'
   const isTyping = message.isTyping
 
@@ -57,9 +102,31 @@ export default function MessageBubble({ message }) {
         }`}>
           {isTyping ? (
             <TypingIndicator />
-          ) : (
+          ) : isUser ? (
             <div className="text-sm leading-relaxed whitespace-pre-wrap">
               {message.content}
+              {message.attachments && message.attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2 pt-1.5 border-t border-white/5">
+                  {message.attachments.map((att, idx) => (
+                    <AttachmentBadge key={idx} attachment={att} />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-sm leading-relaxed">
+              <ReactMarkdown
+                components={{
+                  ul: ({ children }) => <ul className="list-disc pl-4 mb-2">{children}</ul>,
+                  ol: ({ children }) => <ol className="list-decimal pl-4 mb-2">{children}</ol>,
+                  li: ({ children }) => <li className="mb-1 text-sm">{children}</li>,
+                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                  strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                  code: ({ children }) => <code className="bg-white/10 rounded px-1 py-0.5 text-xs font-mono">{children}</code>
+                }}
+              >
+                {message.content}
+              </ReactMarkdown>
             </div>
           )}
         </div>
@@ -77,7 +144,7 @@ export default function MessageBubble({ message }) {
               Sources:
             </span>
             {message.sources.map((src, i) => (
-              <SourceBadge key={i} source={src} />
+              <SourceBadge key={i} source={src} documents={documents} />
             ))}
           </motion.div>
         )}

@@ -11,10 +11,39 @@ import * as chatApi from '../services/chatApi'
 
 function ChatItem({ chat, isActive, onClick, onDelete, onPin, onRename }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [titleInput, setTitleInput] = useState(chat.title)
+
+  useEffect(() => {
+    setTitleInput(chat.title)
+  }, [chat.title])
 
   function openMenu(e) {
     e.stopPropagation()
     setMenuOpen(true)
+  }
+
+  const handleSave = async (e) => {
+    if (e) e.stopPropagation()
+    setIsEditing(false)
+    if (titleInput.trim() && titleInput.trim() !== chat.title) {
+      try {
+        await onRename(chat.id, titleInput.trim())
+      } catch (err) {
+        setTitleInput(chat.title)
+      }
+    } else {
+      setTitleInput(chat.title)
+    }
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handleSave()
+    } else if (e.key === 'Escape') {
+      setIsEditing(false)
+      setTitleInput(chat.title)
+    }
   }
 
   return (
@@ -30,21 +59,37 @@ function ChatItem({ chat, isActive, onClick, onDelete, onPin, onRename }) {
         <Pin className="w-3 h-3 text-blue-400 flex-shrink-0" />
       )}
       <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 opacity-60" />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm truncate font-medium">{chat.title}</p>
-        <p className="text-xs text-white/30 flex items-center gap-1 mt-0.5">
-          <Clock className="w-2.5 h-2.5" />
-          {chat.time}
-        </p>
+      <div className="flex-1 min-w-0" onClick={e => isEditing && e.stopPropagation()}>
+        {isEditing ? (
+          <input
+            type="text"
+            value={titleInput}
+            onChange={e => setTitleInput(e.target.value)}
+            onBlur={handleSave}
+            onKeyDown={handleKeyDown}
+            autoFocus
+            className="w-full bg-white/10 border border-blue-500/30 rounded px-1.5 py-0.5 text-sm text-white outline-none focus:ring-1 focus:ring-blue-500/50"
+          />
+        ) : (
+          <>
+            <p className="text-sm truncate font-medium">{chat.title}</p>
+            <p className="text-xs text-white/30 flex items-center gap-1 mt-0.5">
+              <Clock className="w-2.5 h-2.5" />
+              {chat.time}
+            </p>
+          </>
+        )}
       </div>
 
       {/* Three-dot menu trigger */}
-      <button
-        onClick={openMenu}
-        className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-white/10 transition-all duration-200 flex-shrink-0"
-      >
-        <MoreHorizontal className="w-3.5 h-3.5" />
-      </button>
+      {!isEditing && (
+        <button
+          onClick={openMenu}
+          className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-white/10 transition-all duration-200 flex-shrink-0"
+        >
+          <MoreHorizontal className="w-3.5 h-3.5" />
+        </button>
+      )}
 
       {/* Dropdown Menu */}
       <AnimatePresence>
@@ -60,7 +105,7 @@ function ChatItem({ chat, isActive, onClick, onDelete, onPin, onRename }) {
               onClick={e => e.stopPropagation()}
             >
               {[
-                { icon: Pencil, label: 'Rename', action: () => { onRename?.(chat); setMenuOpen(false) } },
+                { icon: Pencil, label: 'Rename', action: () => { setIsEditing(true); setMenuOpen(false) } },
                 { icon: Pin, label: chat.pinned ? 'Unpin' : 'Pin', action: () => { onPin?.(chat.id); setMenuOpen(false) } },
                 { icon: Trash2, label: 'Delete', action: () => { onDelete?.(chat.id); setMenuOpen(false) }, danger: true },
               ].map(({ icon: Icon, label, action, danger }) => (
@@ -83,7 +128,7 @@ function ChatItem({ chat, isActive, onClick, onDelete, onPin, onRename }) {
   )
 }
 
-export default function Sidebar({ collapsed, setCollapsed, activeChatId, setActiveChatId }) {
+export default function Sidebar({ collapsed, setCollapsed, activeChatId, setActiveChatId, refreshTrigger }) {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
   const [chats, setChats] = useState([])
@@ -125,7 +170,7 @@ export default function Sidebar({ collapsed, setCollapsed, activeChatId, setActi
 
   useEffect(() => {
     loadChats()
-  }, [loadChats, activeChatId])
+  }, [loadChats, activeChatId, refreshTrigger])
 
   const deleteChat = useCallback(async (id) => {
     try {
@@ -143,14 +188,13 @@ export default function Sidebar({ collapsed, setCollapsed, activeChatId, setActi
     setChats(prev => prev.map(c => c.id === id ? { ...c, pinned: !c.pinned } : c))
   }, [])
 
-  const renameChat = useCallback(async (chatItem) => {
-    const newTitle = window.prompt('Rename chat session to:', chatItem.title)
-    if (!newTitle || !newTitle.trim()) return
+  const renameChat = useCallback(async (id, newTitle) => {
     try {
-      await chatApi.renameChat(chatItem.id, newTitle.trim())
-      setChats(prev => prev.map(c => c.id === chatItem.id ? { ...c, title: newTitle.trim() } : c))
+      await chatApi.renameChat(id, newTitle)
+      setChats(prev => prev.map(c => c.id === id ? { ...c, title: newTitle } : c))
     } catch (err) {
       console.error('Failed to rename chat:', err)
+      throw err
     }
   }, [])
 

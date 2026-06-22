@@ -55,7 +55,7 @@ function FileChip({ file, onRemove }) {
   )
 }
 
-function ChatInputWithFiles({ onSend, isLoading }) {
+function ChatInputWithFiles({ onSend, isLoading, onUploadSuccess, activeChatId }) {
   const [text, setText] = useState('')
   const [attachedFiles, setAttachedFiles] = useState([])
   const [isDragging, setIsDragging] = useState(false)
@@ -63,6 +63,17 @@ function ChatInputWithFiles({ onSend, isLoading }) {
   const textareaRef = useRef(null)
   const fileInputRef = useRef(null)
   const intervalsRef = useRef({})
+
+  // Reset inputs and clear polling intervals when chat session changes
+  useEffect(() => {
+    if (intervalsRef.current) {
+      Object.values(intervalsRef.current).forEach(clearInterval)
+      intervalsRef.current = {}
+    }
+    setAttachedFiles([])
+    setText('')
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+  }, [activeChatId])
 
   // Clean up all running intervals on unmount
   useEffect(() => {
@@ -91,7 +102,16 @@ function ChatInputWithFiles({ onSend, isLoading }) {
   function handleSend() {
     const trimmed = text.trim()
     if (!trimmed || isLoading) return
-    onSend?.(trimmed)
+    
+    const completedAttachments = attachedFiles
+      .filter(f => f.status === 'COMPLETED' || f.status === 'UPLOADED' || f.status === 'PROCESSING' || f.status === 'EMBEDDING')
+      .map(f => ({
+        id: f.id,
+        fileName: f.name,
+        filePath: f.filePath
+      }))
+
+    onSend?.(trimmed, completedAttachments)
     setText('')
     setAttachedFiles([])
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
@@ -106,8 +126,9 @@ function ChatInputWithFiles({ onSend, isLoading }) {
 
       // Update file state to UPLOADED or current backend state
       setAttachedFiles(prev =>
-        prev.map(f => (f._uid === uid ? { ...f, status: doc.status, id: docId } : f))
+        prev.map(f => (f._uid === uid ? { ...f, status: doc.status, id: docId, filePath: doc.filePath } : f))
       )
+      onUploadSuccess?.()
 
       // Start status polling
       const interval = setInterval(async () => {
@@ -121,6 +142,7 @@ function ChatInputWithFiles({ onSend, isLoading }) {
                 if (currentStatus === 'COMPLETED' || currentStatus === 'FAILED') {
                   clearInterval(interval)
                   delete intervalsRef.current[uid]
+                  onUploadSuccess?.()
                 }
                 return { ...f, status: currentStatus }
               }
@@ -144,7 +166,7 @@ function ChatInputWithFiles({ onSend, isLoading }) {
         prev.map(f => (f._uid === uid ? { ...f, status: 'FAILED' } : f))
       )
     }
-  }, [])
+  }, [onUploadSuccess])
 
   function addFiles(rawFiles) {
     const tagged = Array.from(rawFiles).map(f => {
@@ -345,6 +367,22 @@ export default function Chat() {
   const [activeChatId, setActiveChatId] = useState(null)
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [documents, setDocuments] = useState([])
+
+  // Load global user documents list
+  const loadDocuments = useCallback(async () => {
+    try {
+      const res = await documentApi.listDocuments(1, 100)
+      setDocuments(res.documents || [])
+    } catch (err) {
+      console.error('Failed to load documents:', err)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadDocuments()
+  }, [loadDocuments, refreshTrigger])
 
   // Load chat messages when activeChatId changes
   useEffect(() => {
@@ -357,6 +395,7 @@ export default function Chat() {
             role: m.role,
             content: m.content,
             sources: m.sources || [],
+            attachments: m.attachments || null,
             timestamp: formatMsgTime(m.createdAt),
           }))
           setMessages(formatted)
@@ -372,7 +411,7 @@ export default function Chat() {
     }
   }, [activeChatId])
 
-  const handleSend = useCallback(async (text) => {
+  const handleSend = useCallback(async (text, attachments = []) => {
     setIsLoading(true)
 
     // 1. User is initiating a brand new chat session
@@ -382,14 +421,16 @@ export default function Chat() {
         id: 'temp-user-id',
         role: 'user',
         content: text,
+        attachments,
         timestamp: getTime(),
       }
       setMessages([tempUserMsg])
 
       try {
-        const res = await chatApi.createChat(text)
+        const res = await chatApi.createChat(text, attachments)
         // Automatically selects the new chat session (which will fire the load message useEffect)
         setActiveChatId(res.session.id)
+        setRefreshTrigger(prev => prev + 1)
       } catch (err) {
         console.error('Failed to start chat:', err)
         setIsLoading(false)
@@ -402,6 +443,7 @@ export default function Chat() {
       id: Date.now().toString(),
       role: 'user',
       content: text,
+      attachments,
       timestamp: getTime(),
     }
     setMessages(prev => [...prev, userMsg])
@@ -410,7 +452,7 @@ export default function Chat() {
     setMessages(prev => [...prev, { id: typingId, role: 'assistant', isTyping: true }])
 
     try {
-      const reply = await chatApi.sendMessage({ chatId: activeChatId, content: text })
+      const reply = await chatApi.sendMessage({ chatId: activeChatId, content: text, attachments })
       const assistantMsg = {
         id: reply.id,
         role: 'assistant',
@@ -437,6 +479,7 @@ export default function Chat() {
         setCollapsed={setCollapsed}
         activeChatId={activeChatId}
         setActiveChatId={setActiveChatId}
+        refreshTrigger={refreshTrigger}
       />
 
       {/* Main column */}
@@ -444,12 +487,14 @@ export default function Chat() {
         {messages.length === 0 ? (
           <EmptyState />
         ) : (
-          <ChatWindow messages={messages} />
+          <ChatWindow messages={messages} documents={documents} />
         )}
 
         <ChatInputWithFiles
           onSend={handleSend}
           isLoading={isLoading}
+          onUploadSuccess={() => setRefreshTrigger(prev => prev + 1)}
+          activeChatId={activeChatId}
         />
       </div>
     </div>

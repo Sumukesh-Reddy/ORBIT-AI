@@ -1,8 +1,8 @@
 import api from './api'
 
-export async function createChat(message) {
+export async function createChat(message, attachments = []) {
   try {
-    const response = await api.post('/chat/new', { message })
+    const response = await api.post('/chat/new', { message, attachments })
     return response.data // Returns { session, message }
   } catch (error) {
     const msg = error.response?.data?.detail || 'Failed to create new chat session.'
@@ -52,9 +52,9 @@ export async function renameChat(chatId, title) {
   }
 }
 
-export async function sendMessage({ chatId, content }) {
+export async function sendMessage({ chatId, content, attachments = [] }) {
   try {
-    const response = await api.post(`/chat/${chatId}/message`, { content })
+    const response = await api.post(`/chat/${chatId}/message`, { content, attachments })
     return response.data // Returns MessageResponse: { id, sessionId, role, content, sources, createdAt }
   } catch (error) {
     const msg = error.response?.data?.detail || 'Failed to send message.'
