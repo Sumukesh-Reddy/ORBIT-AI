@@ -80,8 +80,6 @@ def delete_document_embeddings(doc_id: str):
 def health_check():
     return {"status": "ok"}
 
-# print 1 to 5 for every 5 minutes to keep the container alive
-
 def keep_alive():
     import time
     counter = 1
