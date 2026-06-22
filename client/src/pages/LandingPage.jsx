@@ -515,11 +515,9 @@ export default function LandingPage() {
             © {new Date().getFullYear()} ORBIT AI. All rights reserved.
           </p>
           <div className="flex gap-6">
-            {['Privacy', 'Terms', 'Contact'].map(l => (
-              <a key={l} href="#" className="text-white/30 hover:text-white/60 text-sm transition-colors duration-200">
-                {l}
-              </a>
-            ))}
+            <a href="https://www.sumukesh.app" target="_blank" rel="noopener noreferrer" className="text-white/30 hover:text-white/60 text-sm transition-colors duration-200">
+              Contact
+            </a>
           </div>
         </div>
       </footer>
