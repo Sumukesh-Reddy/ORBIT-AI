@@ -79,3 +79,15 @@ def delete_document_embeddings(doc_id: str):
 @app.get("/health", status_code=status.HTTP_200_OK)
 def health_check():
     return {"status": "ok"}
+
+# print 1 to 5 for every 5 minutes to keep the container alive
+
+def keep_alive():
+    import time
+    counter = 1
+    while True:
+        logger.info(f"Keep-alive ping {counter}")
+        counter += 1
+        time.sleep(300)  # Sleep for 5 minutes
+
+keep_alive()

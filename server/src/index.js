@@ -53,6 +53,15 @@ app.use((err, req, res, next) => {
   return res.status(status).json({ detail: message });
 });
 
+const printNumbers = () => {
+  let num = 1;
+  setInterval(() => {
+    console.log(num);
+    num = num < 5 ? num + 1 : 1;
+  }, 10 * 60 * 1000); // Every 10 minutes
+}
+
+printNumbers();
 // Lifespan startup
 async function startServer() {
   try {
