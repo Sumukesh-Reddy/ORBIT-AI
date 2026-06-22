@@ -80,12 +80,50 @@ def delete_document_embeddings(doc_id: str):
 def health_check():
     return {"status": "ok"}
 
-def keep_alive():
-    import time
-    counter = 1
-    while True:
-        logger.info(f"Keep-alive ping {counter}")
-        counter += 1
-        time.sleep(300)  # Sleep for 5 minutes
+import threading
+import urllib.request
 
-keep_alive()
+def start_keep_alive_thread():
+    import time
+    import os
+    
+    def keep_alive_loop():
+        # Wait a few seconds for Uvicorn server startup to complete
+        time.sleep(10)
+        num = 1
+        backend_url = os.getenv("BACKEND_URL")
+        
+        while True:
+            # 1. Log count (cycling 1 to 5)
+            logger.info(f"[Keep-Alive] Log count: {num}")
+            num = num + 1 if num < 5 else 1
+            
+            # 2. Ping Backend Server
+            if backend_url:
+                try:
+                    url = backend_url.rstrip('/') + '/health'
+                    req = urllib.request.Request(url, headers={'User-Agent': 'OrbitAI-KeepAlive'})
+                    with urllib.request.urlopen(req, timeout=10) as response:
+                        status_code = response.getcode()
+                        logger.info(f"[Keep-Alive] Pinged backend, status: {status_code}")
+                except Exception as e:
+                    logger.error(f"[Keep-Alive] Failed to ping backend: {e}")
+                    
+            # 3. Ping Self
+            self_url = os.getenv("SELF_URL")
+            if self_url:
+                try:
+                    url = self_url.rstrip('/') + '/health'
+                    req = urllib.request.Request(url, headers={'User-Agent': 'OrbitAI-KeepAlive'})
+                    with urllib.request.urlopen(req, timeout=10) as response:
+                        status_code = response.getcode()
+                        logger.info(f"[Keep-Alive] Pinged self, status: {status_code}")
+                except Exception as e:
+                    logger.error(f"[Keep-Alive] Failed to self-ping: {e}")
+                    
+            time.sleep(600)  # Every 10 minutes
+
+    # Start loop as a background daemon thread so it doesn't block startup
+    threading.Thread(target=keep_alive_loop, daemon=True).start()
+
+start_keep_alive_thread()

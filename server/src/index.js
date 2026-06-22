@@ -53,15 +53,37 @@ app.use((err, req, res, next) => {
   return res.status(status).json({ detail: message });
 });
 
-const printNumbers = () => {
+const startKeepAlive = () => {
   let num = 1;
-  setInterval(() => {
-    console.log(num);
+  setInterval(async () => {
+    // Log the current interval count (cycling 1 to 5)
+    console.log(`[Keep-Alive] Log count: ${num}`);
     num = num < 5 ? num + 1 : 1;
+
+    // 1. Cross-ping: Ping AI service to keep it awake
+    if (settings.AI_SERVICE_URL) {
+      try {
+        const response = await fetch(`${settings.AI_SERVICE_URL.replace(/\/$/, '')}/health`);
+        console.log(`[Keep-Alive] Pinged AI Service, status: ${response.status}`);
+      } catch (error) {
+        console.error(`[Keep-Alive] Failed to ping AI Service: ${error.message}`);
+      }
+    }
+
+    // 2. Self-ping: Ping itself via SELF_URL to generate inbound HTTP traffic
+    const selfUrl = process.env.SELF_URL;
+    if (selfUrl) {
+      try {
+        const response = await fetch(`${selfUrl.replace(/\/$/, '')}/health`);
+        console.log(`[Keep-Alive] Pinged self, status: ${response.status}`);
+      } catch (error) {
+        console.error(`[Keep-Alive] Failed to self-ping: ${error.message}`);
+      }
+    }
   }, 10 * 60 * 1000); // Every 10 minutes
 }
 
-printNumbers();
+startKeepAlive();
 // Lifespan startup
 async function startServer() {
   try {
