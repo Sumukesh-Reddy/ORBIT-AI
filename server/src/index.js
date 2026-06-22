@@ -23,8 +23,13 @@ app.use(express.json());
 
 // Routes
 app.use('/api/v1/auth', authRouter);
+app.use('/auth', authRouter); // Fallback for direct /auth routes
+
 app.use('/api/v1/chat', chatRouter);
+app.use('/chat', chatRouter); // Fallback for direct /chat routes
+
 app.use('/api/v1/documents', documentsRouter);
+app.use('/documents', documentsRouter); // Fallback for direct /documents routes
 
 // Health check
 app.get('/', (req, res) => {
