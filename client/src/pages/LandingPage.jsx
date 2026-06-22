@@ -322,9 +322,8 @@ export default function LandingPage() {
               className="flex gap-8 mt-12 justify-center lg:justify-start"
             >
               {[
-                { value: '10+', label: 'Source Types' },
                 { value: 'Hybrid', label: 'RAG Engine' },
-                { value: '< 2s', label: 'Answer Speed' },
+                
               ].map(({ value, label }) => (
                 <div key={label} className="text-center lg:text-left">
                   <div className="font-display font-bold text-2xl text-blue-400">{value}</div>
